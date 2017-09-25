@@ -1,6 +1,27 @@
 import networkx as nx
 import argparse
 import matplotlib.pyplot as plt
+import numpy as np
+
+
+def shufflePositions(N, level):
+    cliques = list(nx.find_cliques(N))
+    positions = dict()
+    r = range(len(cliques))
+    xpos = np.random.choice(r, len(cliques), replace=False)
+    ypos = np.random.choice(r, len(cliques), replace=False)
+    i = 0
+    for L in list(nx.find_cliques(N)):
+        xp = xpos[i]
+        yp = ypos[i]
+        x_range = np.linspace(xp, xp + level, len(L))
+        y_range = np.linspace(yp, yp + level, len(L))
+        j = 0
+        for l in L:
+            positions[l] = [x_range[j], y_range[j]]
+            j += 1
+        i += 1
+    return positions
 
 
 def buildInitialNetwork(args):
@@ -33,17 +54,28 @@ def plotInitialNetwork(N, args, colourdict):
     colours = []
     for n in N.nodes(data=True):
         colours.append(colourdict[n[1]['host']])
-    nx.draw_networkx(N, ax=a, node_color=colours)
+    if args.shuffle:
+        positions = shufflePositions(N, args.shuffle)
+        nx.draw_networkx(N, ax=a, node_color=colours, pos=positions,
+                         niter=100000, k=args.k)
+    else:
+        nx.draw_networkx(N, ax=a, node_color=colours,
+                         niter=100000, k=args.k)
+    a.axis('off')
     f.savefig("test.png")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--hostfile', dest='hostfile')
-    parser.add_argument('--similarityfile', dest='similarityfile')
+    parser.add_argument('--hostfile', dest='hostfile', type=str)
+    parser.add_argument('--similarityfile', dest='similarityfile',
+                        type=str)
     parser.add_argument('--threshold', dest='threshold', type=float)
     parser.add_argument('--colourfile', dest='colours', type=str)
+    parser.add_argument('--shuffle', dest='shuffle', type=float)
+    parser.add_argument('--nodedist', dest='k', type=float,
+                             default=0.1)
     args = parser.parse_args()
     colourdict = dict([line.strip().split("\t")
                        for line in open(args.colours).readlines()])
