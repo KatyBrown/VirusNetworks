@@ -49,7 +49,7 @@ def buildInitialNetwork(hostdict, scoredict):
     return (N)
 
 
-def plotNetwork(N, args, colourdict, outfile, highlight=None):
+def plotNetwork(N, args, colourdict, outfile, lws=1):
     '''
     Draws a diagram of the network.
     '''
@@ -61,24 +61,60 @@ def plotNetwork(N, args, colourdict, outfile, highlight=None):
     if args.shuffle:
         positions = shufflePositions(N, args.shuffle)
         nx.draw_networkx(N, ax=a, node_color=colours, pos=positions,
-                         niter=args.niter, k=args.k)
+                         niter=args.niter, k=args.k, linewidths=lws)
     else:
         nx.draw_networkx(N, ax=a, node_color=colours,
-                         niter=args.niter, k=args.k)
+                         niter=args.niter, k=args.k, linewidths=lws)
+    a.collections[0].set_edgecolor("#000000") 
     a.axis('off')
     f.savefig(outfile)
 
 
-def runConnectedComponents(N, args, colourdict):
+def runConnectedComponents(N, args, colourdict, hostdict):
+    '''
+    Run analyses on the "connected component" subgraphs of the main graph.
+    '''
     ccs = nx.connected_component_subgraphs(N)
     i = 1
     for cc in ccs:
-        plotNetwork(cc, args, colourdict, "%s.png" % i)
+        out = open("node_stats_%s.tsv" % i, "w")
         paths = nx.algorithms.shortest_paths.unweighted.all_pairs_shortest_path(N)
+        dc = nx.degree_centrality(cc)
+        bc = nx.betweenness_centrality(cc)
+
+        m_dc = dc.keys()[0]
+        m_bc = bc.keys()[0]
+        for c in cc.nodes():
+            if dc[c] > dc[m_dc]:
+                m_dc = c
+            if bc[c] > bc[m_bc]:
+                m_bc = c
+            out.write("%s\t%s\t%s\n" % (c, dc[c], bc[c]))
+        out.close()
+        lws = [1 if c != m_dc  else 3 for c in cc.nodes()]
+        plotNetwork(cc, args, colourdict, "%s.png" % i, lws=lws)
+        out = open("shortest_paths.tsv", "w")
+        for path in paths:
+
+            hosts = []
+            for p in paths[path]:
+                a_to_b = paths[path][p]
+                hosts = set()
+                for item in a_to_b:
+                    h = hostdict[item]
+                    hosts.add(h)
+            
+                hoststring = "->".join([hostdict[a] for a in a_to_b])
+
+                out.write("%s\t%s\t%s\t%s\n" % (path, p, ",".join(a_to_b), hoststring))
+        out.close()
         i += 1
 
     
 def parseInput(args):
+    '''
+    Convert the input files into dictionaries.
+    '''
     similarity = [line.strip().split("\t") for line in open(
         args.similarityfile).readlines()]
     scoredict = dict()
@@ -115,4 +151,4 @@ if __name__ == "__main__":
 
     N = buildInitialNetwork(hostdict, scoredict)
     plotNetwork(N, args, colourdict, "network.png")
-    runConnectedComponents(N, args, colourdict)
+    runConnectedComponents(N, args, colourdict, hostdict)
