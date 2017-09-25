@@ -5,6 +5,12 @@ import numpy as np
 
 
 def shufflePositions(N, level):
+    '''
+    Shuffles the starting positions in the diagram of the network - used to
+    tweak the layout so all the nodes are visible.
+    Level is a float specifying how far apart to put the initial points.
+    The networkx spring layout function is then applied.
+    '''
     cliques = list(nx.find_cliques(N))
     positions = dict()
     r = range(len(cliques))
@@ -26,7 +32,9 @@ def shufflePositions(N, level):
 
 def buildInitialNetwork(args):
     '''
-    Build a networkx "Graph" object of the network
+    Build a networkx "Graph" object of the network.
+    Nodes are coloured according to their host based on the
+    file provided.
     '''
     hosts = [line.strip().split("\t") for line in open(
         args.hostfile).readlines()]
@@ -49,6 +57,9 @@ def buildInitialNetwork(args):
 
 
 def plotInitialNetwork(N, args, colourdict):
+    '''
+    Draws an initial diagram of the whole network.
+    '''
     f = plt.figure(figsize=(8, 8))
     a = f.add_subplot('111')
     colours = []
@@ -57,10 +68,10 @@ def plotInitialNetwork(N, args, colourdict):
     if args.shuffle:
         positions = shufflePositions(N, args.shuffle)
         nx.draw_networkx(N, ax=a, node_color=colours, pos=positions,
-                         niter=100000, k=args.k)
+                         niter=args.niter, k=args.k)
     else:
         nx.draw_networkx(N, ax=a, node_color=colours,
-                         niter=100000, k=args.k)
+                         niter=args.niter, k=args.k)
     a.axis('off')
     f.savefig("test.png")
 
@@ -75,7 +86,9 @@ if __name__ == "__main__":
     parser.add_argument('--colourfile', dest='colours', type=str)
     parser.add_argument('--shuffle', dest='shuffle', type=float)
     parser.add_argument('--nodedist', dest='k', type=float,
-                             default=0.1)
+                        default=0.1)
+    parser.add_argument('--niter', dest='niter', type=int,
+                        default=1000)
     args = parser.parse_args()
     colourdict = dict([line.strip().split("\t")
                        for line in open(args.colours).readlines()])
