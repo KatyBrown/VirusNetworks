@@ -31,20 +31,12 @@ def shufflePositions(N, level):
     return positions
 
 
-def buildInitialNetwork(args):
+def buildInitialNetwork(hostdict, scoredict):
     '''
     Build a networkx "Graph" object of the network.
     Nodes are coloured according to their host based on the
     file provided.
     '''
-    hosts = [line.strip().split("\t") for line in open(
-        args.hostfile).readlines()]
-    hostdict = dict(hosts)
-    similarity = [line.strip().split("\t") for line in open(
-        args.similarityfile).readlines()]
-    scoredict = dict()
-    for s in similarity:
-        scoredict["%s_%s" % (s[0], s[1])] = float(s[2])
     N = nx.Graph()
     for s in scoredict:
         if scoredict[s] >= args.threshold:
@@ -75,19 +67,38 @@ def plotNetwork(N, args, colourdict, outfile, highlight=None):
                          niter=args.niter, k=args.k)
     a.axis('off')
     f.savefig(outfile)
-        
+
 
 def runConnectedComponents(N, args, colourdict):
     ccs = nx.connected_component_subgraphs(N)
     i = 1
     for cc in ccs:
         plotNetwork(cc, args, colourdict, "%s.png" % i)
-        print (getShortestPaths(cc))
+        paths = nx.algorithms.shortest_paths.unweighted.all_pairs_shortest_path(N)
         i += 1
 
     
+def parseInput(args):
+    similarity = [line.strip().split("\t") for line in open(
+        args.similarityfile).readlines()]
+    scoredict = dict()
+    for s in similarity:
+        scoredict["%s_%s" % (s[0], s[1])] = float(s[2])
+
+    hosts = [line.strip().split("\t") for line in open(
+        args.hostfile).readlines()]
+    hostdict = dict(hosts)
+
+    colourdict = dict([line.strip().split("\t")
+                       for line in open(args.colours).readlines()])
+
+    return (hostdict, scoredict, colourdict)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+
+
 
     parser.add_argument('--hostfile', dest='hostfile', type=str)
     parser.add_argument('--similarityfile', dest='similarityfile',
@@ -100,10 +111,8 @@ if __name__ == "__main__":
     parser.add_argument('--niter', dest='niter', type=int,
                         default=1000)
     args = parser.parse_args()
-    colourdict = dict([line.strip().split("\t")
-                       for line in open(args.colours).readlines()])
-    N = buildInitialNetwork(args)
-    plotNetwork(N, args, colourdict, "test.png")
-    connected_components = nx.connected_component_subgraphs(N)
-    plotConnectedComponents(connected_components, args, colourdict)
-    getShortestPaths(connected_components)
+    hostdict, scoredict, colourdict = parseInput(args)
+
+    N = buildInitialNetwork(hostdict, scoredict)
+    plotNetwork(N, args, colourdict, "network.png")
+    runConnectedComponents(N, args, colourdict)
