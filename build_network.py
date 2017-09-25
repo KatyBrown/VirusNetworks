@@ -2,6 +2,7 @@ import networkx as nx
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 
 def shufflePositions(N, level):
@@ -56,9 +57,9 @@ def buildInitialNetwork(args):
     return (N)
 
 
-def plotInitialNetwork(N, args, colourdict):
+def plotNetwork(N, args, colourdict, outfile, highlight=None):
     '''
-    Draws an initial diagram of the whole network.
+    Draws a diagram of the network.
     '''
     f = plt.figure(figsize=(8, 8))
     a = f.add_subplot('111')
@@ -73,9 +74,18 @@ def plotInitialNetwork(N, args, colourdict):
         nx.draw_networkx(N, ax=a, node_color=colours,
                          niter=args.niter, k=args.k)
     a.axis('off')
-    f.savefig("test.png")
+    f.savefig(outfile)
+        
 
+def runConnectedComponents(N, args, colourdict):
+    ccs = nx.connected_component_subgraphs(N)
+    i = 1
+    for cc in ccs:
+        plotNetwork(cc, args, colourdict, "%s.png" % i)
+        print (getShortestPaths(cc))
+        i += 1
 
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -93,4 +103,7 @@ if __name__ == "__main__":
     colourdict = dict([line.strip().split("\t")
                        for line in open(args.colours).readlines()])
     N = buildInitialNetwork(args)
-    plotInitialNetwork(N, args, colourdict)
+    plotNetwork(N, args, colourdict, "test.png")
+    connected_components = nx.connected_component_subgraphs(N)
+    plotConnectedComponents(connected_components, args, colourdict)
+    getShortestPaths(connected_components)
