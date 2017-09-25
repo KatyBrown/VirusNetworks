@@ -1,5 +1,6 @@
 import networkx as nx
 import argparse
+import matplotlib.pyplot as plt
 
 
 def buildInitialNetwork(args):
@@ -23,7 +24,18 @@ def buildInitialNetwork(args):
             if v2 not in N:
                 N.add_node(v2, host=hostdict[v2])
             N.add_edge(v1, v2, weight=scoredict[s])
-    print (N.nodes())
+    return (N)
+
+
+def plotInitialNetwork(N, args, colourdict):
+    f = plt.figure(figsize=(8, 8))
+    a = f.add_subplot('111')
+    colours = []
+    for n in N.nodes(data=True):
+        colours.append(colourdict[n[1]['host']])
+    nx.draw_networkx(N, ax=a, node_color=colours)
+    f.savefig("test.png")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -31,6 +43,9 @@ if __name__ == "__main__":
     parser.add_argument('--hostfile', dest='hostfile')
     parser.add_argument('--similarityfile', dest='similarityfile')
     parser.add_argument('--threshold', dest='threshold', type=float)
+    parser.add_argument('--colourfile', dest='colours', type=str)
     args = parser.parse_args()
-
-    buildInitialNetwork(args)
+    colourdict = dict([line.strip().split("\t")
+                       for line in open(args.colours).readlines()])
+    N = buildInitialNetwork(args)
+    plotInitialNetwork(N, args, colourdict)
