@@ -84,6 +84,30 @@ def plotNetwork(N, args, colourdict, outfile, lws=1):
     a.legend(handles=patches, labels=labels)
     f.savefig(outfile)
 
+def getDCBC(N):
+    '''
+    Calculated betweenness centrality and degree centrality
+    '''
+    dc = nx.degree_centrality(N)
+    bc = nx.betweenness_centrality(N)
+    m_dc = dc.keys()[0]
+    m_bc = bc.keys()[0]
+    for c in N.nodes():
+        if dc[c] > dc[m_dc]:
+            m_dc = c
+        if bc[c] > bc[m_bc]:
+            m_bc = c
+    
+    m_dc = dc.keys()[0]
+    m_bc = bc.keys()[0]
+    return (dc, bc, m_dc, m_bc)
+
+def writeNodeStats(N, dc, bc, outfile):
+    out = open(outfile, "w")
+    out.write("Node\tDegree_Centrality\tBetweenness_Centrality\n")
+    for c in N.nodes():
+        out.write("%s\t%s\t%s\n" % (c, dc[c], bc[c]))    
+    out.close()
 
 def runConnectedComponents(N, args, colourdict, hostdict):
     '''
@@ -95,22 +119,22 @@ def runConnectedComponents(N, args, colourdict, hostdict):
     ccs = nx.connected_component_subgraphs(N)
     for cc in ccs:
         print ("Plotting connected component %i" % i)
-        out = open("node_stats_%s.tsv" % i, "w")
-        paths = nx.algorithms.shortest_paths.unweighted.all_pairs_shortest_path(N)
-        dc = nx.degree_centrality(cc)
-        bc = nx.betweenness_centrality(cc)
 
-        m_dc = dc.keys()[0]
-        m_bc = bc.keys()[0]
-        for c in cc.nodes():
-            if dc[c] > dc[m_dc]:
-                m_dc = c
-            if bc[c] > bc[m_bc]:
-                m_bc = c
-            out.write("%s\t%s\t%s\n" % (c, dc[c], bc[c]))
-        out.close()
+        
+        dc, bc, m_dc, m_bc = getDCBC(cc)
+        writeNodeStats(cc, dc, bc, "node_%i.tsv" % i)
         lws = [1 if c != m_dc  else 3 for c in cc.nodes()]
         plotNetwork(cc, args, colourdict, "%s.png" % i, lws=lws)
+
+        for c in cc.nodes():
+            if c == m_dc or c == m_bc:
+                seq = fastadict[c]
+                out = open("temp.fasta", "w")
+                out.write(">c\n%s\n" % seq)
+                out.close()
+                os.system('../usearch10.0.240_i86linux32 -ublast temp.fasta -db %s -evalue 1e-9 -strand both -blast6out temp_%i.out' % (args.ublast, i))
+        plotNetwork(cc, args, colourdict, "%s.png" % i, lws=lws)
+        paths = nx.algorithms.shortest_paths.unweighted.all_pairs_shortest_path(N)
         out = open("shortest_paths.tsv", "w")
         for path in paths:
             hosts = []
@@ -172,17 +196,37 @@ def parseInput(args):
         i += 1
     return (hostdict, scoredict, colourdict)
 
+def getFastaDict(fasta):
+    print ("Parsing FASTA file to dictionary")
+    fastadict = dict()
+    seq = []
+    nam = 0
+    with open(fasta) as infile:
+        for line in infile:
+            line = line.strip()
+            if line[0] == ">":
+                if nam != 0:
+                    fastadict[nam] = "".join(seq)
+                    seq = []
+                nam = line.replace(">", "")
+            else:
+                seq.append(line)
+    fastadict[nam] = "".join(seq)
+    print ("Generated FASTA dictionary of length %i" % len(fastadict))
+    return (fastadict)
+
 
 if __name__ == "__main__":
+    random.seed(10)
     parser = argparse.ArgumentParser()
-
-
 
     parser.add_argument('--hostfile', dest='hostfile', type=str)
     parser.add_argument('--similarityfile', dest='similarityfile',
                         type=str)
+    parser.add_argument('--fasta', dest='fasta', type=str)
     parser.add_argument('--threshold', dest='threshold', type=float)
-    parser.add_argument('--colourfile', dest='colours', type=str)
+    parser.add_argument('--ublast', dest='ublast', type=str)
+
     parser.add_argument('--shuffle', dest='shuffle', type=float)
     parser.add_argument('--nodedist', dest='k', type=float,
                         default=0.1)
@@ -190,9 +234,10 @@ if __name__ == "__main__":
                         default=1000)
     parser.add_argument('--transtype', dest='transtype', type=str,
                         default='crossfamily')
+
     args = parser.parse_args()
     hostdict, scoredict, colourdict = parseInput(args)
-
+    fastadict = getFastaDict(args.fasta)
     N = buildInitialNetwork(hostdict, scoredict)
     plotNetwork(N, args, colourdict, "network.png")
     runConnectedComponents(N, args, colourdict, hostdict)
